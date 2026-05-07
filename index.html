@@ -58,6 +58,10 @@
       cursor: grabbing;
     }
 
+    .about-copy {
+      display: none;
+    }
+
     .controls {
       position: fixed;
       right: max(24px, env(safe-area-inset-right));
@@ -114,11 +118,56 @@
         width: 54px;
         height: 51px;
       }
+
+      .about-copy {
+        position: fixed;
+        left: max(22px, env(safe-area-inset-left));
+        right: max(22px, env(safe-area-inset-right));
+        top: 52vh;
+        bottom: max(116px, calc(env(safe-area-inset-bottom) + 96px));
+        z-index: 1;
+        display: block;
+        max-height: min(42vh, 360px);
+        overflow: auto;
+        color: rgb(0 0 0 / 0.88);
+        font-size: 13px;
+        font-weight: 600;
+        line-height: 1.58;
+        letter-spacing: 0;
+        word-break: keep-all;
+        overflow-wrap: anywhere;
+        opacity: 0;
+        filter: blur(7px);
+        transform: translateY(10px);
+        transition: opacity 220ms ease, filter 220ms ease, transform 220ms ease;
+        pointer-events: none;
+      }
+
+      .about-copy p {
+        margin: 0 0 0.74em;
+      }
+
+      .about-copy p:first-child {
+        margin-bottom: 1.58em;
+      }
+
+      .about-copy p:last-child {
+        margin-bottom: 0;
+      }
+
+      body[data-mode="about"] .about-copy {
+        opacity: 1;
+        filter: blur(0);
+        transform: translateY(0);
+        transition: opacity 720ms ease 520ms, filter 900ms ease 520ms, transform 720ms ease 520ms;
+        pointer-events: auto;
+      }
     }
   </style>
 </head>
 <body>
   <canvas id="cloud" aria-label="부처 3D 모델 기반 포인트 클라우드"></canvas>
+  <div class="about-copy" aria-hidden="true"></div>
   <div class="controls" aria-label="포인트 형태 제어">
     <button class="point-button" type="button" data-mode="about" aria-label="about 문장 보기" aria-pressed="false">
       <img class="button-icon" src="about.png" alt="">
@@ -133,6 +182,7 @@
   <script src="hand-2d-samples.js"></script>
   <script>
     const canvas = document.querySelector("#cloud");
+    const aboutCopy = document.querySelector(".about-copy");
     const pointButtons = [...document.querySelectorAll(".point-button")];
     const ctx = canvas.getContext("2d", { alpha: true });
     const raw = window.MODEL_POINTS || [];
@@ -328,41 +378,22 @@
       return createTargetsFromSamples(createTextSamples(lines, options));
     }
 
-    function emphasizeSamples(samples, radius = 0.0017) {
-      const offsets = [
-        { x: 0, y: 0 },
-        { x: radius, y: 0 },
-        { x: -radius, y: 0 },
-        { x: 0, y: radius },
-        { x: 0, y: -radius }
-      ];
-
-      return offsets.flatMap((offset) => samples.map((sample) => ({
-        x: sample.x + offset.x,
-        y: sample.y + offset.y,
-        z: sample.z || 0
-      })));
-    }
-
     function createAboutTargets(lines) {
       const width = 1200;
       const height = 720;
       const viewport = getViewportSize();
       const isSmallScreen = viewport.width <= 720 || viewport.height <= 520;
-      const textSamples = createTextSamples(lines, {
-        align: "left",
-        valign: "top",
-        weight: isSmallScreen ? 800 : 600,
-        maxFontSize: isSmallScreen ? 25 : 32,
-        minFontSize: isSmallScreen ? 15 : 17,
-        step: 2,
-        region: isSmallScreen
-          ? { x: 438, y: 316, width: 324, height: 390 }
-          : { x: 74, y: 78, width: 560, height: 565 }
-      });
       const samples = isSmallScreen
-        ? emphasizeSamples(textSamples, 0.0019)
-        : textSamples;
+        ? []
+        : createTextSamples(lines, {
+          align: "left",
+          valign: "top",
+          weight: 600,
+          maxFontSize: 32,
+          minFontSize: 17,
+          step: 2,
+          region: { x: 74, y: 78, width: 560, height: 565 }
+        });
 
       const imageData = window.TV_BUDDHA_SAMPLES || [];
       const imageRegion = isSmallScreen
@@ -465,6 +496,9 @@
       for (const button of pointButtons) {
         button.setAttribute("aria-pressed", String(button.dataset.mode === mode));
       }
+
+      document.body.dataset.mode = mode;
+      aboutCopy.setAttribute("aria-hidden", String(!isMobileAboutMode()));
     }
 
     function resize() {
@@ -549,21 +583,23 @@
       const cloudWidth = Math.max(0.001, maxX - minX);
       const cloudHeight = Math.max(0.001, maxY - minY);
       const targetFitPadding = isMobileAboutMode()
-        ? 0.9
+        ? 0.62
         : fitPadding;
       const fitScale = Math.min(width * targetFitPadding / cloudWidth, height * targetFitPadding / cloudHeight);
       const scaleBoost = isMobileAboutMode()
-        ? 1.08
+        ? 0.9
         : 1;
       const scale = fitScale * scaleBoost;
       const centerX = (minX + maxX) / 2;
       const centerY = (minY + maxY) / 2;
+      const renderCy = isMobileAboutMode()
+        ? height * 0.25
+        : cy;
 
       for (const p of projected) {
         const px = cx + (p.x - centerX) * scale;
-        const py = cy + (p.y - centerY) * scale;
-        const pointSize = isMobileAboutMode() ? 0.82 : 0.58;
-        const size = Math.max(1, Math.round(pointSize * p.perspective));
+        const py = renderCy + (p.y - centerY) * scale;
+        const size = Math.max(1, Math.round(0.58 * p.perspective));
         ctx.fillRect(Math.round(px), Math.round(py), size, size);
       }
 
@@ -571,6 +607,11 @@
     }
 
     rebuildTextTargets();
+    aboutCopy.replaceChildren(...TEXT_SETS.about.map((line) => {
+      const paragraph = document.createElement("p");
+      paragraph.textContent = line;
+      return paragraph;
+    }));
 
     for (const button of pointButtons) {
       button.addEventListener("click", () => {
