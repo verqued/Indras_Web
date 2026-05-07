@@ -155,13 +155,13 @@
     };
     const TEXT_SETS = {
       about: [
-        "불교의 ‘인드라망’ 개념과 현대 웹 환경에 대하여…",
+        "불교의 ‘인드라망’과 현대 웹 환경에 대하여…",
         "인드라망은 모든 존재가 서로를 비추고 연결되어 있다는 비유다.",
         "망의 하나의 구슬 안에는 다른 모든 구슬이 반사되며, 각 존재는 독립적으로 존재하지 않고 관계 속에서 드러난다.",
         "오늘날의 웹 또한 링크, 데이터, 사용자, 알고리즘이 서로에게 영향을 주는 거대한 연결 구조로 이루어져 있다.",
         "이 작업은 백남준의 ‘TV 부처(1974)’ 이후의 환경을 상상한다.",
         "일방향적인 매체인 TV와 달리 웹은 사용자의 개입과 반응을 통해 끊임없이 변화하는 공간이다.",
-        "화면 중앙의 부처는 고정된 조각상이 사용자의 움직임에 따라 변화하며, 관찰자는 외부의 감상자가 아니라 망 내부에 참여하는 하나의 요소가 된다."
+        "화면 중앙의 부처는 사용자의 움직임에 따라 변화하며, 관찰자는 외부의 감상자가 아니라 망 내부에 참여하는 하나의 요소가 된다."
       ],
       info: [
         "2026",
@@ -328,22 +328,41 @@
       return createTargetsFromSamples(createTextSamples(lines, options));
     }
 
+    function emphasizeSamples(samples, radius = 0.0017) {
+      const offsets = [
+        { x: 0, y: 0 },
+        { x: radius, y: 0 },
+        { x: -radius, y: 0 },
+        { x: 0, y: radius },
+        { x: 0, y: -radius }
+      ];
+
+      return offsets.flatMap((offset) => samples.map((sample) => ({
+        x: sample.x + offset.x,
+        y: sample.y + offset.y,
+        z: sample.z || 0
+      })));
+    }
+
     function createAboutTargets(lines) {
       const width = 1200;
       const height = 720;
       const viewport = getViewportSize();
       const isSmallScreen = viewport.width <= 720 || viewport.height <= 520;
-      const samples = createTextSamples(lines, {
+      const textSamples = createTextSamples(lines, {
         align: "left",
         valign: "top",
-        weight: 600,
-        maxFontSize: isSmallScreen ? 23 : 32,
-        minFontSize: isSmallScreen ? 13 : 17,
-        step: isSmallScreen ? 3 : 2,
+        weight: isSmallScreen ? 800 : 600,
+        maxFontSize: isSmallScreen ? 25 : 32,
+        minFontSize: isSmallScreen ? 15 : 17,
+        step: 2,
         region: isSmallScreen
-          ? { x: 460, y: 322, width: 280, height: 382 }
+          ? { x: 438, y: 316, width: 324, height: 390 }
           : { x: 74, y: 78, width: 560, height: 565 }
       });
+      const samples = isSmallScreen
+        ? emphasizeSamples(textSamples, 0.0019)
+        : textSamples;
 
       const imageData = window.TV_BUDDHA_SAMPLES || [];
       const imageRegion = isSmallScreen
@@ -406,7 +425,7 @@
         maxFontSize: 58,
         minFontSize: 28,
         step: 2,
-        region: { x: 250, y: 400, width: 700, height: 170 }
+        region: { x: 250, y: 358, width: 700, height: 170 }
       }));
 
       return createTargetsFromSamples(samples);
@@ -543,7 +562,8 @@
       for (const p of projected) {
         const px = cx + (p.x - centerX) * scale;
         const py = cy + (p.y - centerY) * scale;
-        const size = Math.max(1, Math.round(0.58 * p.perspective));
+        const pointSize = isMobileAboutMode() ? 0.82 : 0.58;
+        const size = Math.max(1, Math.round(pointSize * p.perspective));
         ctx.fillRect(Math.round(px), Math.round(py), size, size);
       }
 
