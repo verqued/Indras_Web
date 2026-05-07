@@ -337,17 +337,17 @@
         align: "left",
         valign: "top",
         weight: 600,
-        maxFontSize: isSmallScreen ? 35 : 32,
-        minFontSize: isSmallScreen ? 20 : 17,
-        step: isSmallScreen ? 4 : 2,
+        maxFontSize: isSmallScreen ? 23 : 32,
+        minFontSize: isSmallScreen ? 13 : 17,
+        step: isSmallScreen ? 3 : 2,
         region: isSmallScreen
-          ? { x: 42, y: 318, width: 1116, height: 392 }
+          ? { x: 460, y: 322, width: 280, height: 382 }
           : { x: 74, y: 78, width: 560, height: 565 }
       });
 
       const imageData = window.TV_BUDDHA_SAMPLES || [];
       const imageRegion = isSmallScreen
-        ? { x: 300, y: 8, width: 600, height: 288 }
+        ? { x: 462, y: 18, width: 276, height: 280 }
         : { x: 690, y: 82, width: 430, height: 555 };
       const imageAspect = 948 / 912;
       let imageWidth = imageRegion.width;
@@ -530,11 +530,11 @@
       const cloudWidth = Math.max(0.001, maxX - minX);
       const cloudHeight = Math.max(0.001, maxY - minY);
       const targetFitPadding = isMobileAboutMode()
-        ? 0.94
+        ? 0.9
         : fitPadding;
       const fitScale = Math.min(width * targetFitPadding / cloudWidth, height * targetFitPadding / cloudHeight);
       const scaleBoost = isMobileAboutMode()
-        ? 1.45
+        ? 1.08
         : 1;
       const scale = fitScale * scaleBoost;
       const centerX = (minX + maxX) / 2;
