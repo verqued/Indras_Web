@@ -1,0 +1,531 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Indra’s Web</title>
+  <meta name="description" content="Indra’s Web">
+  <meta property="og:title" content="Indra’s Web">
+  <meta property="og:description" content="Indra’s Web">
+  <meta name="twitter:title" content="Indra’s Web">
+  <meta name="twitter:description" content="Indra’s Web">
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #fff;
+      --ink: #000;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+    }
+
+    body {
+      overflow: hidden;
+      background: var(--bg);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+      cursor: grab;
+      touch-action: none;
+    }
+
+    canvas:active {
+      cursor: grabbing;
+    }
+
+    .controls {
+      position: fixed;
+      right: max(24px, env(safe-area-inset-right));
+      bottom: max(24px, env(safe-area-inset-bottom));
+      z-index: 2;
+      display: flex;
+      gap: 10px;
+      pointer-events: auto;
+    }
+
+    .controls button {
+      position: relative;
+      display: grid;
+      place-items: center;
+      width: 61px;
+      height: 58px;
+      border: 0;
+      border-radius: 0;
+      padding: 0;
+      background: transparent;
+      color: var(--ink);
+      cursor: pointer;
+    }
+
+    .controls button[aria-pressed="true"] {
+      background: transparent;
+    }
+
+    .controls button:focus-visible {
+      outline: 2px solid var(--ink);
+      outline-offset: 3px;
+    }
+
+    .button-icon {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      pointer-events: none;
+    }
+
+    .controls button[aria-pressed="true"] .button-icon {
+      opacity: 0.48;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="cloud" aria-label="부처 3D 모델 기반 포인트 클라우드"></canvas>
+  <div class="controls" aria-label="포인트 형태 제어">
+    <button class="point-button" type="button" data-mode="about" aria-label="about 문장 보기" aria-pressed="false">
+      <img class="button-icon" src="about.png" alt="">
+    </button>
+    <button class="point-button" type="button" data-mode="info" aria-label="info 문장 보기" aria-pressed="false">
+      <img class="button-icon" src="info.png" alt="">
+    </button>
+  </div>
+
+  <script src="model-points.js"></script>
+  <script src="tv-buddha-samples.js"></script>
+  <script src="hand-2d-samples.js"></script>
+  <script>
+    const canvas = document.querySelector("#cloud");
+    const pointButtons = [...document.querySelectorAll(".point-button")];
+    const ctx = canvas.getContext("2d", { alpha: true });
+    const raw = window.MODEL_POINTS || [];
+    const points = [];
+    const pointer = { x: 0, down: false, seen: false };
+    const rotation = { y: Math.PI / 2 };
+    const velocity = { y: 0 };
+    const camera = 3.8;
+    const fitPadding = 0.72;
+    const pointDensity = 2;
+    const morph = {
+      active: false,
+      startTime: 0,
+      duration: 1500,
+      from: [],
+      to: [],
+      mode: "buddha",
+      textTargets: {}
+    };
+    const TEXT_SETS = {
+      about: [
+        "불교의 ‘인드라망’ 개념과 현대 웹 환경에 대하여…",
+        "인드라망은 모든 존재가 서로를 비추고 연결되어 있다는 비유다.",
+        "망의 하나의 구슬 안에는 다른 모든 구슬이 반사되며, 각 존재는 독립적으로 존재하지 않고 관계 속에서 드러난다.",
+        "오늘날의 웹 또한 링크, 데이터, 사용자, 알고리즘이 서로에게 영향을 주는 거대한 연결 구조로 이루어져 있다.",
+        "이 작업은 백남준의 ‘TV 부처(1974)’ 이후의 환경을 상상한다.",
+        "일방향적인 매체인 TV와 달리 웹은 사용자의 개입과 반응을 통해 끊임없이 변화하는 공간이다.",
+        "화면 중앙의 부처는 고정된 조각상이 사용자의 움직임에 따라 변화하며, 관찰자는 외부의 감상자가 아니라 망 내부에 참여하는 하나의 요소가 된다."
+      ],
+      info: [
+        "2026",
+        "@indcives",
+      ]
+    };
+
+    for (let i = 0; i < raw.length; i += 3) {
+      points.push({
+        x: raw[i],
+        y: raw[i + 1],
+        z: raw[i + 2],
+        homeX: raw[i],
+        homeY: raw[i + 1],
+        homeZ: raw[i + 2]
+      });
+    }
+
+    const basePointCount = points.length;
+    for (let copy = 1; copy < pointDensity; copy += 1) {
+      for (let i = 0; i < basePointCount; i += 1) {
+        const source = points[i];
+        const jitterA = ((i * 16807 + copy * 48271) % 997) / 997 - 0.5;
+        const jitterB = ((i * 48271 + copy * 69691) % 991) / 991 - 0.5;
+        const jitterC = ((i * 69691 + copy * 16807) % 983) / 983 - 0.5;
+        const amount = 0.0028 * copy;
+
+        points.push({
+          x: source.homeX + jitterA * amount,
+          y: source.homeY + jitterB * amount,
+          z: source.homeZ + jitterC * amount,
+          homeX: source.homeX + jitterA * amount,
+          homeY: source.homeY + jitterB * amount,
+          homeZ: source.homeZ + jitterC * amount
+        });
+      }
+    }
+
+    function easeInOutCubic(t) {
+      return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    }
+
+    function wrapText(context, text, maxWidth) {
+      const words = text.includes(" ") ? text.split(" ") : Array.from(text);
+      const lines = [];
+      let line = "";
+
+      for (const word of words) {
+        const separator = text.includes(" ") && line ? " " : "";
+        const testLine = line + separator + word;
+        if (line && context.measureText(testLine).width > maxWidth) {
+          lines.push(line);
+          line = word;
+        } else {
+          line = testLine;
+        }
+      }
+
+      if (line) {
+        lines.push(line);
+      }
+
+      return lines;
+    }
+
+    function toCloudSample(x, y, width, height) {
+      return {
+        x: (x / width - 0.5) * 1.75,
+        y: (y / height - 0.5) * 1.05,
+        z: 0
+      };
+    }
+
+    function collectCanvasSamples(context, width, height, options = {}) {
+      const image = context.getImageData(0, 0, width, height).data;
+      const samples = [];
+      const step = options.step || 4;
+
+      for (let y = 0; y < height; y += step) {
+        for (let x = 0; x < width; x += step) {
+          const alpha = image[(y * width + x) * 4 + 3];
+          if (alpha > 40) {
+            samples.push(toCloudSample(x, y, width, height));
+          }
+        }
+      }
+
+      return samples;
+    }
+
+    function createTargetsFromSamples(samples) {
+      return points.map((_, index) => {
+        const sampleIndex = samples.length > points.length
+          ? Math.floor(index * samples.length / points.length)
+          : index % samples.length;
+        const sample = samples[sampleIndex] || { x: 0, y: 0, z: 0 };
+        const jitter = ((index * 16807) % 997) / 997 - 0.5;
+        return {
+          x: sample.x,
+          y: sample.y,
+          z: (sample.z || 0) + jitter * 0.018
+        };
+      });
+    }
+
+    function createTextSamples(lines, options = {}) {
+      const targetCanvas = document.createElement("canvas");
+      const targetCtx = targetCanvas.getContext("2d", { willReadFrequently: true });
+      const width = 1200;
+      const height = 720;
+      const region = options.region || { x: 0, y: 0, width, height };
+      const align = options.align || "center";
+      const weight = options.weight || 700;
+      const minFontSize = options.minFontSize || 24;
+      const maxFontSize = options.maxFontSize || 76;
+      const step = options.step || 4;
+
+      targetCanvas.width = width;
+      targetCanvas.height = height;
+      targetCtx.clearRect(0, 0, width, height);
+      targetCtx.fillStyle = "#000";
+      targetCtx.textAlign = align;
+      targetCtx.textBaseline = "top";
+
+      let fontSize = maxFontSize;
+      let wrapped = [];
+      let lineHeight = Math.round(fontSize * 1.34);
+
+      do {
+        targetCtx.font = `${weight} ${fontSize}px ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`;
+        wrapped = lines.flatMap((line) => wrapText(targetCtx, line, region.width * 0.98));
+        lineHeight = Math.round(fontSize * 1.34);
+        fontSize -= 2;
+      } while (wrapped.length * lineHeight > region.height && fontSize > minFontSize);
+
+      const totalHeight = wrapped.length * lineHeight;
+      const startY = options.valign === "top"
+        ? region.y
+        : region.y + (region.height - totalHeight) / 2;
+      const textX = align === "left"
+        ? region.x
+        : align === "right"
+          ? region.x + region.width
+          : region.x + region.width / 2;
+
+      wrapped.forEach((line, index) => {
+        targetCtx.fillText(line, textX, startY + index * lineHeight);
+      });
+
+      return collectCanvasSamples(targetCtx, width, height, {
+        step
+      });
+    }
+
+    function createTextTargets(lines, options) {
+      return createTargetsFromSamples(createTextSamples(lines, options));
+    }
+
+    function createAboutTargets(lines) {
+      const width = 1200;
+      const height = 720;
+      const samples = createTextSamples(lines, {
+        align: "left",
+        valign: "top",
+        weight: 600,
+        maxFontSize: 32,
+        minFontSize: 17,
+        step: 2,
+        region: { x: 74, y: 78, width: 560, height: 565 }
+      });
+      const imageData = window.TV_BUDDHA_SAMPLES || [];
+      const imageRegion = { x: 690, y: 82, width: 430, height: 555 };
+      const imageAspect = 948 / 912;
+      let imageWidth = imageRegion.width;
+      let imageHeight = imageWidth / imageAspect;
+
+      if (imageHeight > imageRegion.height) {
+        imageHeight = imageRegion.height;
+        imageWidth = imageHeight * imageAspect;
+      }
+
+      const imageX = imageRegion.x + (imageRegion.width - imageWidth) / 2;
+      const imageY = imageRegion.y + (imageRegion.height - imageHeight) / 2;
+
+      for (let i = 0; i < imageData.length; i += 2) {
+        samples.push(toCloudSample(
+          imageX + imageData[i] * imageWidth,
+          imageY + imageData[i + 1] * imageHeight,
+          width,
+          height
+        ));
+      }
+
+      return createTargetsFromSamples(samples);
+    }
+
+    function createInfoTargets(lines) {
+      const width = 1200;
+      const height = 720;
+      const samples = [];
+      const handData = window.HAND_2D_SAMPLES || [];
+      const handRegion = { x: 390, y: 102, width: 420, height: 235 };
+      const sourceAspect = 1190 / 655;
+      let handWidth = handRegion.width;
+      let handHeight = handWidth / sourceAspect;
+
+      if (handHeight > handRegion.height) {
+        handHeight = handRegion.height;
+        handWidth = handHeight * sourceAspect;
+      }
+
+      const handX = handRegion.x + (handRegion.width - handWidth) / 2;
+      const handY = handRegion.y + (handRegion.height - handHeight) / 2;
+
+      for (let i = 0; i < handData.length; i += 2) {
+        samples.push(toCloudSample(
+          handX + handData[i] * handWidth,
+          handY + handData[i + 1] * handHeight,
+          width,
+          height
+        ));
+      }
+
+      samples.push(...createTextSamples(lines, {
+        align: "center",
+        weight: 700,
+        maxFontSize: 58,
+        minFontSize: 28,
+        step: 2,
+        region: { x: 250, y: 400, width: 700, height: 170 }
+      }));
+
+      return createTargetsFromSamples(samples);
+    }
+
+    function beginMorph(mode) {
+      const targets = mode in morph.textTargets
+        ? morph.textTargets[mode]
+        : points.map((point) => ({ x: point.homeX, y: point.homeY, z: point.homeZ }));
+
+      morph.active = true;
+      morph.startTime = performance.now();
+      morph.mode = mode;
+      morph.from = points.map((point) => ({ x: point.x, y: point.y, z: point.z }));
+      morph.to = targets;
+
+      for (const button of pointButtons) {
+        button.setAttribute("aria-pressed", String(button.dataset.mode === mode));
+      }
+    }
+
+    function resize() {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.floor(window.innerWidth * dpr);
+      canvas.height = Math.floor(window.innerHeight * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    function draw() {
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      const cx = width / 2;
+      const cy = height / 2;
+
+      rotation.y += velocity.y;
+      if (morph.mode !== "buddha") {
+        rotation.y += (0 - rotation.y) * 0.045;
+      }
+      velocity.y *= pointer.down ? 0.86 : 0.94;
+      if (Math.abs(velocity.y) < 0.00001) {
+        velocity.y = 0;
+      }
+
+      if (morph.active) {
+        const progress = Math.min(1, (performance.now() - morph.startTime) / morph.duration);
+        const eased = easeInOutCubic(progress);
+
+        for (let i = 0; i < points.length; i += 1) {
+          const from = morph.from[i];
+          const to = morph.to[i];
+          points[i].x = from.x + (to.x - from.x) * eased;
+          points[i].y = from.y + (to.y - from.y) * eased;
+          points[i].z = from.z + (to.z - from.z) * eased;
+        }
+
+        if (progress >= 1) {
+          morph.active = false;
+        }
+      }
+
+      const sinY = Math.sin(rotation.y);
+      const cosY = Math.cos(rotation.y);
+      const projected = [];
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = "#000";
+
+      if (points.length === 0) {
+        ctx.fillRect(Math.round(cx - 8), Math.round(cy - 8), 16, 16);
+        requestAnimationFrame(draw);
+        return;
+      }
+
+      for (const p of points) {
+        const x = p.x * cosY + p.z * sinY;
+        const z = -p.x * sinY + p.z * cosY;
+        const perspective = camera / (camera - z);
+        const px = x * perspective;
+        const py = p.y * perspective;
+        projected.push({ x: px, y: py, perspective });
+        minX = Math.min(minX, px);
+        minY = Math.min(minY, py);
+        maxX = Math.max(maxX, px);
+        maxY = Math.max(maxY, py);
+      }
+
+      const cloudWidth = Math.max(0.001, maxX - minX);
+      const cloudHeight = Math.max(0.001, maxY - minY);
+      const scale = Math.min(width * fitPadding / cloudWidth, height * fitPadding / cloudHeight);
+      const centerX = (minX + maxX) / 2;
+      const centerY = (minY + maxY) / 2;
+
+      for (const p of projected) {
+        const px = cx + (p.x - centerX) * scale;
+        const py = cy + (p.y - centerY) * scale;
+        const size = Math.max(1, Math.round(0.58 * p.perspective));
+        ctx.fillRect(Math.round(px), Math.round(py), size, size);
+      }
+
+      requestAnimationFrame(draw);
+    }
+
+    for (const [mode, lines] of Object.entries(TEXT_SETS)) {
+      morph.textTargets[mode] = mode === "about"
+        ? createAboutTargets(lines)
+        : mode === "info"
+          ? createInfoTargets(lines)
+        : createTextTargets(lines);
+    }
+
+    for (const button of pointButtons) {
+      button.addEventListener("click", () => {
+        beginMorph(morph.mode === button.dataset.mode ? "buddha" : button.dataset.mode);
+      });
+    }
+
+    window.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        beginMorph("buddha");
+      }
+    });
+    window.addEventListener("resize", resize);
+    window.addEventListener("pointerdown", (event) => {
+      if (event.target !== canvas) {
+        return;
+      }
+
+      pointer.down = true;
+      pointer.seen = true;
+      pointer.x = event.clientX;
+      canvas.setPointerCapture(event.pointerId);
+    });
+    window.addEventListener("pointermove", (event) => {
+      if (!pointer.seen) {
+        pointer.seen = true;
+        pointer.x = event.clientX;
+        return;
+      }
+
+      const dx = event.clientX - pointer.x;
+      const force = pointer.down ? -0.0009 : -0.00025;
+      velocity.y += dx * force;
+      velocity.y = Math.max(-0.045, Math.min(0.045, velocity.y));
+      pointer.x = event.clientX;
+    });
+    window.addEventListener("pointerup", (event) => {
+      pointer.down = false;
+      if (canvas.hasPointerCapture(event.pointerId)) {
+        canvas.releasePointerCapture(event.pointerId);
+      }
+    });
+    window.addEventListener("pointercancel", () => {
+      pointer.down = false;
+    });
+
+    resize();
+    draw();
+  </script>
+</body>
+</html>
