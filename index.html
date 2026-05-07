@@ -131,7 +131,8 @@
       from: [],
       to: [],
       mode: "buddha",
-      textTargets: {}
+      textTargets: {},
+      targetProfile: ""
     };
     const TEXT_SETS = {
       about: [
@@ -303,15 +304,23 @@
     function createAboutTargets(lines) {
       const width = 1200;
       const height = 720;
+      const isSmallScreen = window.innerWidth <= 720 || window.innerHeight <= 520;
       const samples = createTextSamples(lines, {
-        align: "left",
-        valign: "top",
+        align: isSmallScreen ? "center" : "left",
+        valign: isSmallScreen ? "middle" : "top",
         weight: 600,
-        maxFontSize: 32,
-        minFontSize: 17,
-        step: 2,
-        region: { x: 74, y: 78, width: 560, height: 565 }
+        maxFontSize: isSmallScreen ? 38 : 32,
+        minFontSize: isSmallScreen ? 22 : 17,
+        step: isSmallScreen ? 4 : 2,
+        region: isSmallScreen
+          ? { x: 150, y: 62, width: 900, height: 600 }
+          : { x: 74, y: 78, width: 560, height: 565 }
       });
+
+      if (isSmallScreen) {
+        return createTargetsFromSamples(samples);
+      }
+
       const imageData = window.TV_BUDDHA_SAMPLES || [];
       const imageRegion = { x: 690, y: 82, width: 430, height: 555 };
       const imageAspect = 948 / 912;
@@ -377,6 +386,21 @@
       return createTargetsFromSamples(samples);
     }
 
+    function getTargetProfile() {
+      return window.innerWidth <= 720 || window.innerHeight <= 520 ? "small" : "large";
+    }
+
+    function rebuildTextTargets() {
+      morph.targetProfile = getTargetProfile();
+      for (const [mode, lines] of Object.entries(TEXT_SETS)) {
+        morph.textTargets[mode] = mode === "about"
+          ? createAboutTargets(lines)
+          : mode === "info"
+            ? createInfoTargets(lines)
+          : createTextTargets(lines);
+      }
+    }
+
     function beginMorph(mode) {
       const targets = mode in morph.textTargets
         ? morph.textTargets[mode]
@@ -398,6 +422,14 @@
       canvas.width = Math.floor(window.innerWidth * dpr);
       canvas.height = Math.floor(window.innerHeight * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      if (morph.targetProfile !== getTargetProfile()) {
+        const currentMode = morph.mode;
+        rebuildTextTargets();
+        if (currentMode !== "buddha") {
+          beginMorph(currentMode);
+        }
+      }
     }
 
     function draw() {
@@ -478,13 +510,7 @@
       requestAnimationFrame(draw);
     }
 
-    for (const [mode, lines] of Object.entries(TEXT_SETS)) {
-      morph.textTargets[mode] = mode === "about"
-        ? createAboutTargets(lines)
-        : mode === "info"
-          ? createInfoTargets(lines)
-        : createTextTargets(lines);
-    }
+    rebuildTextTargets();
 
     for (const button of pointButtons) {
       button.addEventListener("click", () => {
