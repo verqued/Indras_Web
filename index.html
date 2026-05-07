@@ -309,20 +309,18 @@
         align: isSmallScreen ? "center" : "left",
         valign: isSmallScreen ? "middle" : "top",
         weight: 600,
-        maxFontSize: isSmallScreen ? 38 : 32,
-        minFontSize: isSmallScreen ? 22 : 17,
+        maxFontSize: isSmallScreen ? 32 : 32,
+        minFontSize: isSmallScreen ? 18 : 17,
         step: isSmallScreen ? 4 : 2,
         region: isSmallScreen
-          ? { x: 150, y: 62, width: 900, height: 600 }
+          ? { x: 110, y: 305, width: 980, height: 380 }
           : { x: 74, y: 78, width: 560, height: 565 }
       });
 
-      if (isSmallScreen) {
-        return createTargetsFromSamples(samples);
-      }
-
       const imageData = window.TV_BUDDHA_SAMPLES || [];
-      const imageRegion = { x: 690, y: 82, width: 430, height: 555 };
+      const imageRegion = isSmallScreen
+        ? { x: 420, y: 34, width: 360, height: 245 }
+        : { x: 690, y: 82, width: 430, height: 555 };
       const imageAspect = 948 / 912;
       let imageWidth = imageRegion.width;
       let imageHeight = imageWidth / imageAspect;
