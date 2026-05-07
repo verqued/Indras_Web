@@ -235,10 +235,13 @@
       return lines;
     }
 
-    function toCloudSample(x, y, width, height) {
+    function toCloudSample(x, y, width, height, options = {}) {
+      const scaleX = options.scaleX || 1.75;
+      const scaleY = options.scaleY || 1.05;
+
       return {
-        x: (x / width - 0.5) * 1.75,
-        y: (y / height - 0.5) * 1.05,
+        x: (x / width - 0.5) * scaleX,
+        y: (y / height - 0.5) * scaleY,
         z: 0
       };
     }
@@ -252,7 +255,7 @@
         for (let x = 0; x < width; x += step) {
           const alpha = image[(y * width + x) * 4 + 3];
           if (alpha > 40) {
-            samples.push(toCloudSample(x, y, width, height));
+            samples.push(toCloudSample(x, y, width, height, options));
           }
         }
       }
@@ -278,8 +281,8 @@
     function createTextSamples(lines, options = {}) {
       const targetCanvas = document.createElement("canvas");
       const targetCtx = targetCanvas.getContext("2d", { willReadFrequently: true });
-      const width = 1200;
-      const height = 720;
+      const width = options.canvasWidth || 1200;
+      const height = options.canvasHeight || 720;
       const region = options.region || { x: 0, y: 0, width, height };
       const align = options.align || "center";
       const weight = options.weight || 700;
@@ -329,25 +332,31 @@
     }
 
     function createAboutTargets(lines) {
-      const width = 1200;
-      const height = 720;
       const viewport = getViewportSize();
       const isSmallScreen = viewport.width <= 720 || viewport.height <= 520;
+      const width = isSmallScreen ? 720 : 1200;
+      const height = isSmallScreen ? 1200 : 720;
+      const scaleX = isSmallScreen ? 0.72 : 1.75;
+      const scaleY = isSmallScreen ? 1.46 : 1.05;
       const samples = createTextSamples(lines, {
+        canvasWidth: width,
+        canvasHeight: height,
+        scaleX,
+        scaleY,
         align: "left",
         valign: "top",
         weight: 600,
-        maxFontSize: isSmallScreen ? 35 : 32,
-        minFontSize: isSmallScreen ? 20 : 17,
-        step: isSmallScreen ? 4 : 2,
+        maxFontSize: isSmallScreen ? 34 : 32,
+        minFontSize: isSmallScreen ? 18 : 17,
+        step: isSmallScreen ? 3 : 2,
         region: isSmallScreen
-          ? { x: 42, y: 318, width: 1116, height: 392 }
+          ? { x: 48, y: 626, width: 624, height: 520 }
           : { x: 74, y: 78, width: 560, height: 565 }
       });
 
       const imageData = window.TV_BUDDHA_SAMPLES || [];
       const imageRegion = isSmallScreen
-        ? { x: 300, y: 8, width: 600, height: 288 }
+        ? { x: 84, y: 48, width: 552, height: 520 }
         : { x: 690, y: 82, width: 430, height: 555 };
       const imageAspect = 948 / 912;
       let imageWidth = imageRegion.width;
@@ -366,7 +375,8 @@
           imageX + imageData[i] * imageWidth,
           imageY + imageData[i + 1] * imageHeight,
           width,
-          height
+          height,
+          { scaleX, scaleY }
         ));
       }
 
