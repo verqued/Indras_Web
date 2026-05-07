@@ -334,26 +334,26 @@
       const viewport = getViewportSize();
       const isSmallScreen = viewport.width <= 720 || viewport.height <= 520;
       const samples = createTextSamples(lines, {
-        align: "left",
-        valign: "top",
+        align: isSmallScreen ? "center" : "left",
+        valign: isSmallScreen ? "middle" : "top",
         weight: 600,
-        maxFontSize: isSmallScreen ? 38 : 32,
-        minFontSize: isSmallScreen ? 22 : 17,
+        maxFontSize: isSmallScreen ? 32 : 32,
+        minFontSize: isSmallScreen ? 18 : 17,
         step: isSmallScreen ? 4 : 2,
         region: isSmallScreen
-          ? { x: 42, y: 310, width: 1116, height: 385 }
+          ? { x: 110, y: 305, width: 980, height: 380 }
           : { x: 74, y: 78, width: 560, height: 565 }
       });
 
       const imageData = window.TV_BUDDHA_SAMPLES || [];
       const imageRegion = isSmallScreen
-        ? { x: 0, y: 0, width: 1200, height: 285 }
+        ? { x: 420, y: 34, width: 360, height: 245 }
         : { x: 690, y: 82, width: 430, height: 555 };
       const imageAspect = 948 / 912;
       let imageWidth = imageRegion.width;
       let imageHeight = imageWidth / imageAspect;
 
-      if (isSmallScreen ? imageHeight < imageRegion.height : imageHeight > imageRegion.height) {
+      if (imageHeight > imageRegion.height) {
         imageHeight = imageRegion.height;
         imageWidth = imageHeight * imageAspect;
       }
@@ -362,20 +362,12 @@
       const imageY = imageRegion.y + (imageRegion.height - imageHeight) / 2;
 
       for (let i = 0; i < imageData.length; i += 2) {
-        const sampleX = imageX + imageData[i] * imageWidth;
-        const sampleY = imageY + imageData[i + 1] * imageHeight;
-
-        if (
-          !isSmallScreen ||
-          (
-            sampleX >= imageRegion.x &&
-            sampleX <= imageRegion.x + imageRegion.width &&
-            sampleY >= imageRegion.y &&
-            sampleY <= imageRegion.y + imageRegion.height
-          )
-        ) {
-          samples.push(toCloudSample(sampleX, sampleY, width, height));
-        }
+        samples.push(toCloudSample(
+          imageX + imageData[i] * imageWidth,
+          imageY + imageData[i + 1] * imageHeight,
+          width,
+          height
+        ));
       }
 
       return createTargetsFromSamples(samples);
@@ -533,10 +525,7 @@
 
       const cloudWidth = Math.max(0.001, maxX - minX);
       const cloudHeight = Math.max(0.001, maxY - minY);
-      const targetFitPadding = morph.mode === "about" && getTargetProfile() === "small"
-        ? 0.98
-        : fitPadding;
-      const scale = Math.min(width * targetFitPadding / cloudWidth, height * targetFitPadding / cloudHeight);
+      const scale = Math.min(width * fitPadding / cloudWidth, height * fitPadding / cloudHeight);
       const centerX = (minX + maxX) / 2;
       const centerY = (minY + maxY) / 2;
 
