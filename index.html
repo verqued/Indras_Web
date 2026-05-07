@@ -48,6 +48,12 @@
       touch-action: none;
     }
 
+    @supports (height: 100dvh) {
+      canvas {
+        height: 100dvh;
+      }
+    }
+
     canvas:active {
       cursor: grabbing;
     }
@@ -95,6 +101,19 @@
 
     .controls button[aria-pressed="true"] .button-icon {
       opacity: 0.48;
+    }
+
+    @media (max-width: 720px), (max-height: 520px) {
+      .controls {
+        right: max(16px, env(safe-area-inset-right));
+        bottom: max(44px, calc(env(safe-area-inset-bottom) + 24px));
+        gap: 8px;
+      }
+
+      .controls button {
+        width: 54px;
+        height: 51px;
+      }
     }
   </style>
 </head>
@@ -149,6 +168,14 @@
         "@indcives",
       ]
     };
+
+    function getViewportSize() {
+      const viewport = window.visualViewport;
+      return {
+        width: viewport ? viewport.width : window.innerWidth,
+        height: viewport ? viewport.height : window.innerHeight
+      };
+    }
 
     for (let i = 0; i < raw.length; i += 3) {
       points.push({
@@ -304,7 +331,8 @@
     function createAboutTargets(lines) {
       const width = 1200;
       const height = 720;
-      const isSmallScreen = window.innerWidth <= 720 || window.innerHeight <= 520;
+      const viewport = getViewportSize();
+      const isSmallScreen = viewport.width <= 720 || viewport.height <= 520;
       const samples = createTextSamples(lines, {
         align: "left",
         valign: "top",
@@ -393,7 +421,8 @@
     }
 
     function getTargetProfile() {
-      return window.innerWidth <= 720 || window.innerHeight <= 520 ? "small" : "large";
+      const viewport = getViewportSize();
+      return viewport.width <= 720 || viewport.height <= 520 ? "small" : "large";
     }
 
     function rebuildTextTargets() {
@@ -425,8 +454,9 @@
 
     function resize() {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      canvas.width = Math.floor(window.innerWidth * dpr);
-      canvas.height = Math.floor(window.innerHeight * dpr);
+      const viewport = getViewportSize();
+      canvas.width = Math.floor(viewport.width * dpr);
+      canvas.height = Math.floor(viewport.height * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
       if (morph.targetProfile !== getTargetProfile()) {
@@ -439,8 +469,9 @@
     }
 
     function draw() {
-      const width = window.innerWidth;
-      const height = window.innerHeight;
+      const viewport = getViewportSize();
+      const width = viewport.width;
+      const height = viewport.height;
       const cx = width / 2;
       const cy = height / 2;
 
@@ -533,6 +564,10 @@
       }
     });
     window.addEventListener("resize", resize);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", resize);
+      window.visualViewport.addEventListener("scroll", resize);
+    }
     window.addEventListener("pointerdown", (event) => {
       if (event.target !== canvas) {
         return;
